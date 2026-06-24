@@ -1,0 +1,66 @@
+export type ThemeColors = typeof lightTheme;
+
+export const lightTheme = {
+  background: '#f8fafc',
+  primary: '#2563eb',
+  textDark: '#0f172a',
+  textGray: '#64748b',
+  textLight: '#94a3b8',
+  border: '#e2e8f0',
+  inputBg: '#f1f5f9',
+  white: '#fff',
+  danger: '#ef4444',
+  dangerBg: '#fee2e2',
+  success: '#16a34a',
+  rating: '#eab308',
+  avatar: '#3b82f6',
+  sectionTitle: '#1e293b',
+  label: '#334155',
+  tabBg: '#e2e8f0',
+  darkBlue: '#1e3a8a',
+};
+
+export const darkTheme: ThemeColors = {
+  background: '#000000',
+  primary: '#3b82f6',
+  textDark: '#FFFFFF',
+  textGray: '#a0aec0',
+  textLight: '#718096',
+  border: '#2d3748',
+  inputBg: '#121212',
+  white: '#1a1a1a',
+  danger: '#fc8181',
+  dangerBg: '#3d1a1a',
+  success: '#68d391',
+  rating: '#ecc94b',
+  avatar: '#3b82f6',
+  sectionTitle: '#e2e8f0',
+  label: '#cbd5e1',
+  tabBg: '#1a202c',
+  darkBlue: '#1e3a8a',
+};
+
+export const colors = lightTheme;
+
+export const bairrosCuritiba = [
+  { name: 'Água Verde', latitude: -25.4522, longitude: -49.2862 },
+  { name: 'Ahú', latitude: -25.4167, longitude: -49.2667 },
+  { name: 'Alto da Glória', latitude: -25.4217, longitude: -49.2578 },
+  { name: 'Batel', latitude: -25.4431, longitude: -49.2812 },
+  { name: 'Bigorrilho', latitude: -25.4383, longitude: -49.2897 },
+  { name: 'Bom Retiro', latitude: -25.4094, longitude: -49.2767 },
+  { name: 'Cabral', latitude: -25.4181, longitude: -49.2708 },
+  { name: 'Centro', latitude: -25.4300, longitude: -49.2700 },
+  { name: 'Champagnat', latitude: -25.4458, longitude: -49.2931 },
+  { name: 'Cristo Rei', latitude: -25.4336, longitude: -49.2500 },
+  { name: 'Hugo Lange', latitude: -25.4117, longitude: -49.2586 },
+  { name: 'Jardim Social', latitude: -25.4083, longitude: -49.2514 },
+  { name: 'Juvevê', latitude: -25.4153, longitude: -49.2612 },
+  { name: 'Mercês', latitude: -25.4342, longitude: -49.2945 },
+  { name: 'Portão', latitude: -25.4644, longitude: -49.2924 },
+  { name: 'Rebouças', latitude: -25.4436, longitude: -49.2583 },
+  { name: 'Santa Quitéria', latitude: -25.4569, longitude: -49.2833 },
+  { name: 'São Francisco', latitude: -25.4258, longitude: -49.2750 },
+  { name: 'Seminário', latitude: -25.4400, longitude: -49.2950 },
+  { name: 'Vila Izabel', latitude: -25.4583, longitude: -49.2944 },
+];
