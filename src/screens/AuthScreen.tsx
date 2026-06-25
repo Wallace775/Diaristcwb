@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase';
 import { colors } from '../styles/theme';
 import { UserType } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
-import { maskPhone, isValidEmail, isValidPhone } from '../utils/masks';
+import { maskPhone, isValidEmail, isValidPhone, extractDigits, formatCPF } from '../utils/masks';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { GOOGLE_PLACES_API_KEY } from '../config/google';
 
@@ -34,6 +34,7 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [cpf, setCpf] = useState('');
   const [userType, setUserType] = useState<UserType>('cliente');
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -59,6 +60,12 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
       return;
     }
 
+    const cpfDigits = extractDigits(cpf);
+    if (!cpf || cpfDigits.length !== 11) {
+      Alert.alert("Atenção", "Informe um CPF válido com 11 dígitos.");
+      return;
+    }
+
     if (userType === 'diarista' && !selectedAddress) {
       Alert.alert("Atenção", "Para se cadastrar como diarista, informe seu endereço de atendimento.");
       return;
@@ -71,21 +78,37 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message.includes('User already registered')) {
+          Alert.alert(
+            "E-mail já cadastrado",
+            "Você já possui uma conta cadastrada! Por favor, faça o login normalmente. Dentro do seu painel, você poderá ativar ou alternar para o outro perfil a qualquer momento."
+          );
+          return;
+        }
+        throw authError;
+      }
 
       if (authData?.user) {
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert([
-            {
-              id: authData.user.id,
-              full_name: fullName,
-              phone: phone,
-              user_type: userType,
-            },
-          ]);
+          .insert([{
+            id: authData.user.id,
+            full_name: fullName,
+            phone,
+            cpf: cpfDigits,
+            user_type: userType,
+          }]);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          await supabase.auth.signOut();
+          if (profileError.message?.includes('cpf_e_tipo_unicos') || profileError.message?.includes('violates unique constraint')) {
+            Alert.alert("CPF já cadastrado", "Este CPF já está cadastrado para este tipo de conta.");
+          } else {
+            Alert.alert("Erro no Cadastro", profileError.message || "Ocorreu um erro inesperado.");
+          }
+          return;
+        }
 
         if (userType === 'diarista' && selectedAddress) {
           const { error: addressError } = await supabase
@@ -110,7 +133,12 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
         onAuthSuccess(userType);
       }
     } catch (error: any) {
-      Alert.alert("Erro no Cadastro", error.message || "Ocorreu um erro inesperado.");
+      const msg = error?.message || '';
+      if (msg.includes('cpf_e_tipo_unicos') || msg.includes('violates unique constraint')) {
+        Alert.alert("CPF já cadastrado", "Este CPF já está cadastrado para este tipo de conta.");
+      } else {
+        Alert.alert("Erro no Cadastro", error.message || "Ocorreu um erro inesperado.");
+      }
     } finally {
       setLoading(false);
     }
@@ -160,7 +188,7 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <TouchableOpacity
               onPress={toggleTheme}
@@ -219,6 +247,19 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
                   />
                 </View>
 
+                <Text style={[styles.inputLabel, { color: theme.label }]}>CPF</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                  <Text style={[styles.inputIcon, { fontSize: 20, color: theme.textLight }]}>🔒</Text>
+                  <TextInput
+                    style={[styles.input, { color: theme.textDark }]}
+                    placeholder="000.000.000-00"
+                    placeholderTextColor={theme.textLight}
+                    keyboardType="numeric"
+                    value={cpf}
+                    onChangeText={(text) => setCpf(formatCPF(text))}
+                  />
+                </View>
+
                 <Text style={[styles.inputLabel, { color: theme.label }]}>Tipo de Perfil</Text>
                 <View style={styles.typeContainer}>
                   <TouchableOpacity
@@ -247,6 +288,9 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
                       minLength={2}
                       debounce={300}
                       disableScroll={true}
+                      listViewProps={{
+                        keyboardShouldPersistTaps: 'handled',
+                      }}
                       query={{
                         key: GOOGLE_PLACES_API_KEY,
                         language: 'pt-BR',

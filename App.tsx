@@ -6,6 +6,7 @@ import HomeScreenCliente from './src/screens/HomeScreenCliente';
 import HomeScreenDiarista from './src/screens/HomeScreenDiarista';
 import { UserSession, UserType } from './src/types';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { supabase } from './src/lib/supabase';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,7 +38,8 @@ export default function App() {
     setUserSession({ loggedIn: true, type });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUserSession({ loggedIn: false, type: null });
   };
 

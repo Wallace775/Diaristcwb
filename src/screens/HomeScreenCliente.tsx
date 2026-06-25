@@ -10,6 +10,8 @@ import {
   ScrollView,
   Modal,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
@@ -1511,16 +1513,20 @@ export default function HomeScreenCliente({ onLogout }: Props) {
         </SafeAreaView>
       </Modal>
       <Modal visible={bookingModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.white }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textDark }]}>Agendar Faxina</Text>
-              <TouchableOpacity onPress={() => { setBookingModalVisible(false); resetBookingForm(); }}>
-                <Text style={[styles.modalClose, { color: theme.primary }]}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.white }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.textDark }]}>Agendar Faxina</Text>
+                <TouchableOpacity onPress={() => { setBookingModalVisible(false); resetBookingForm(); }}>
+                  <Text style={[styles.modalClose, { color: theme.primary }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
               {selectedDiarista && (
                 <View style={[styles.bookingDiaristaCard, { backgroundColor: theme.inputBg }]}>
                   <UserAvatar url={selectedDiarista.avatar_url} name={selectedDiarista.full_name} size={48} />
@@ -1649,6 +1655,7 @@ export default function HomeScreenCliente({ onLogout }: Props) {
             </ScrollView>
           </View>
         </View>
+      </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={reviewModalVisible} animationType="slide" transparent>

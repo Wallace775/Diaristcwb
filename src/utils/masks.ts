@@ -39,3 +39,12 @@ export function isValidPhone(phone: string): boolean {
   const digits = extractDigits(phone);
   return digits.length === 10 || digits.length === 11;
 }
+
+export function formatCPF(value: string): string {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    .slice(0, 14);
+}
