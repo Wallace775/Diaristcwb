@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Image, Text, StyleSheet } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { DiaristaItem } from '../types';
 
@@ -23,15 +23,23 @@ function DiaristaMarker({ diarista, onPress }: DiaristaMarkerProps) {
     >
       <View style={styles.pinContainer}>
         <View style={styles.pinCircle}>
-          <Image
-            source={{ uri: diarista.avatar_url || undefined }}
-            style={styles.pinImage}
-            onLoadEnd={() => {
-              setTimeout(() => {
-                setTracksViewChanges(false);
-              }, 500);
-            }}
-          />
+          {diarista.avatar_url ? (
+            <Image
+              source={{ uri: diarista.avatar_url }}
+              style={styles.pinImage}
+              onLoadEnd={() => {
+                setTimeout(() => {
+                  setTracksViewChanges(false);
+                }, 500);
+              }}
+            />
+          ) : (
+            <View style={styles.pinFallback}>
+              <Text style={styles.pinFallbackText}>
+                {diarista.full_name?.charAt(0)?.toUpperCase() || '?'}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.pinArrow} />
       </View>
@@ -151,6 +159,19 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     resizeMode: 'cover',
+  },
+  pinFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinFallbackText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#64748b',
   },
   pinArrow: {
     width: 0,

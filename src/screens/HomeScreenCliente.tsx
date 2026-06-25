@@ -130,19 +130,22 @@ export default function HomeScreenCliente({ onLogout }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        setUserLocation(true);
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
         await new Promise(resolve => setTimeout(resolve, 400));
         const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         const { latitude, longitude } = position.coords;
         setCoordenadasUsuario({ latitude, longitude });
+        setUserLocation(true);
         mapRef.current?.animateToRegion({
           latitude,
           longitude,
           latitudeDelta: 0.04,
           longitudeDelta: 0.04,
         }, 500);
+      } catch (error) {
+        console.warn('Falha ao obter localização:', error);
       }
     })();
   }, []);
