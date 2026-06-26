@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -38,6 +39,9 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
   const [userType, setUserType] = useState<UserType>('cliente');
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleSignUp = async () => {
     if (!email || !password || !fullName || !phone) {
@@ -129,8 +133,23 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
           if (addressError) throw addressError;
         }
 
-        Alert.alert("Sucesso!", "Sua conta foi criada.");
-        onAuthSuccess(userType);
+        if (!authData.session) {
+          setEmail('');
+          setPassword('');
+          setFullName('');
+          setPhone('');
+          setCpf('');
+          setSelectedAddress(null);
+          setUserType('cliente');
+          setActiveTab('entrar');
+          Alert.alert(
+            "Confirme seu E-mail!",
+            "Enviamos um link de ativação para o seu e-mail. Por favor, verifique sua caixa de entrada (e a pasta de spam) para ativar sua conta antes de fazer o login."
+          );
+        } else {
+          Alert.alert("Sucesso!", "Sua conta foi criada.");
+          onAuthSuccess(userType);
+        }
       }
     } catch (error: any) {
       const msg = error?.message || '';
@@ -177,6 +196,35 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
       Alert.alert("Erro no Login", error.message || "E-mail ou senha incorretos.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail) {
+      Alert.alert("Atenção", "Informe seu e-mail para receber o link de recuperação.");
+      return;
+    }
+
+    if (!isValidEmail(resetEmail)) {
+      Alert.alert("Atenção", "Informe um e-mail válido.");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: 'diaristcwb://redefinir-senha',
+      });
+
+      if (error) throw error;
+
+      Alert.alert("Link enviado!", "Verifique sua caixa de entrada para redefinir sua senha.");
+      setShowForgotPassword(false);
+      setResetEmail('');
+    } catch (error: any) {
+      Alert.alert("Erro", error.message || "Ocorreu um erro ao enviar o link de recuperação.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -366,6 +414,15 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
               />
             </View>
 
+            {activeTab === 'entrar' && (
+              <TouchableOpacity
+                style={styles.forgotPasswordButton}
+                onPress={() => setShowForgotPassword(true)}
+              >
+                <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>Esqueci minha senha</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={[styles.submitButton, { backgroundColor: theme.primary }]}
               onPress={activeTab === 'entrar' ? handleLogin : handleSignUp}
@@ -382,6 +439,59 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showForgotPassword}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowForgotPassword(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.white }]}>
+            <Text style={[styles.modalTitle, { color: theme.textDark }]}>Redefinir Senha</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.textGray }]}>
+              Digite seu e-mail para receber o link de redefinição de senha.
+            </Text>
+
+            <Text style={[styles.inputLabel, { color: theme.label }]}>E-mail</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <Mail color={theme.textLight} size={20} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: theme.textDark }]}
+                placeholder="seu-email@exemplo.com"
+                placeholderTextColor={theme.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={resetEmail}
+                onChangeText={setResetEmail}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: theme.primary }]}
+              onPress={handleForgotPassword}
+              disabled={resetLoading}
+            >
+              {resetLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Enviar Link de Recuperação</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cancelButton, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowForgotPassword(false);
+                setResetEmail('');
+              }}
+              disabled={resetLoading}
+            >
+              <Text style={[styles.cancelButtonText, { color: theme.textGray }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -526,5 +636,51 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 24,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  cancelButton: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
