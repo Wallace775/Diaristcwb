@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -42,6 +43,47 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+
+  useEffect(() => {
+    const handleDeepLink = async (url: string | null) => {
+      if (!url) return;
+
+      if (url.includes('redefinir-senha')) {
+        try {
+          const parsedUrl = new URL(url);
+          const fragment = parsedUrl.hash.replace('#', '');
+          const params = new URLSearchParams(fragment);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+
+            if (!error) {
+              setShowResetPasswordForm(true);
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao processar deep link:', err);
+        }
+      }
+    };
+
+    Linking.getInitialURL().then(handleDeepLink);
+
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   const handleSignUp = async () => {
     if (!email || !password || !fullName || !phone) {
@@ -228,6 +270,34 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert("Atenção", "A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert("Atenção", "As senhas não conferem.");
+      return;
+    }
+
+    setResetPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (error) throw error;
+
+      Alert.alert("Sucesso!", "Sua senha foi redefinida com sucesso.");
+      setShowResetPasswordForm(false);
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (error: any) {
+      Alert.alert("Erro", error.message || "Ocorreu um erro ao redefinir a senha.");
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -251,192 +321,255 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
             <Text style={[styles.subtitle, { color: theme.textGray }]}>Encontre ou ofereça serviços de faxina em Curitiba</Text>
           </View>
 
-          <View style={[styles.tabContainer, { backgroundColor: theme.tabBg }]}>
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'entrar' && [styles.activeTabButton, { backgroundColor: theme.white }]]}
-              onPress={() => setActiveTab('entrar')}
-            >
-              <Text style={[styles.tabText, { color: theme.textGray }, activeTab === 'entrar' && { color: theme.textDark }]}>Entrar</Text>
-            </TouchableOpacity>
+          {showResetPasswordForm ? (
+            <View style={[styles.card, { backgroundColor: theme.white }]}>
+              <Text style={[styles.modalTitle, { color: theme.textDark, marginBottom: 8 }]}>Redefinir Senha</Text>
+              <Text style={[styles.modalSubtitle, { color: theme.textGray }]}>
+                Digite sua nova senha para acessar o aplicativo.
+              </Text>
 
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'cadastrar' && [styles.activeTabButton, { backgroundColor: theme.white }]]}
-              onPress={() => setActiveTab('cadastrar')}
-            >
-              <Text style={[styles.tabText, { color: theme.textGray }, activeTab === 'cadastrar' && { color: theme.textDark }]}>Cadastrar</Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.inputLabel, { color: theme.label }]}>Nova Senha</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                <Lock color={theme.textLight} size={20} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.textDark }]}
+                  placeholder="No mínimo 6 caracteres"
+                  placeholderTextColor={theme.textLight}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                />
+              </View>
 
-          <View style={[styles.card, { backgroundColor: theme.white }]}>
-            {activeTab === 'cadastrar' && (
-              <>
-                <Text style={[styles.inputLabel, { color: theme.label }]}>Nome Completo</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                  <User color={theme.textLight} size={20} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: theme.textDark }]}
-                    placeholder="Seu nome completo"
-                    placeholderTextColor={theme.textLight}
-                    value={fullName}
-                    onChangeText={setFullName}
-                  />
-                </View>
+              <Text style={[styles.inputLabel, { color: theme.label }]}>Confirmar Nova Senha</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                <Lock color={theme.textLight} size={20} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.textDark }]}
+                  placeholder="Repita a nova senha"
+                  placeholderTextColor={theme.textLight}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                />
+              </View>
 
-                <Text style={[styles.inputLabel, { color: theme.label }]}>Telefone / WhatsApp</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                  <Phone color={theme.textLight} size={20} style={styles.inputIcon} />
-                    <TextInput
-                    style={[styles.input, { color: theme.textDark }]}
-                    placeholder="(41) 99999-9999"
-                    placeholderTextColor={theme.textLight}
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={(text) => setPhone(maskPhone(text))}
-                  />
-                </View>
-
-                <Text style={[styles.inputLabel, { color: theme.label }]}>CPF</Text>
-                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                  <Text style={[styles.inputIcon, { fontSize: 20, color: theme.textLight }]}>🔒</Text>
-                  <TextInput
-                    style={[styles.input, { color: theme.textDark }]}
-                    placeholder="000.000.000-00"
-                    placeholderTextColor={theme.textLight}
-                    keyboardType="numeric"
-                    value={cpf}
-                    onChangeText={(text) => setCpf(formatCPF(text))}
-                  />
-                </View>
-
-                <Text style={[styles.inputLabel, { color: theme.label }]}>Tipo de Perfil</Text>
-                <View style={styles.typeContainer}>
-                  <TouchableOpacity
-                    style={[styles.typeButton, { backgroundColor: theme.inputBg, borderColor: theme.border }, userType === 'cliente' && styles.typeButtonActive]}
-                    onPress={() => setUserType('cliente')}
-                  >
-                    <UserCheck color={userType === 'cliente' ? '#fff' : theme.textGray} size={20} />
-                    <Text style={[styles.typeButtonText, { color: theme.textGray }, userType === 'cliente' && styles.typeButtonTextActive]}>Quero Contratar</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.typeButton, { backgroundColor: theme.inputBg, borderColor: theme.border }, userType === 'diarista' && styles.typeButtonActive]}
-                    onPress={() => setUserType('diarista')}
-                  >
-                    <Briefcase color={userType === 'diarista' ? '#fff' : theme.textGray} size={20} />
-                    <Text style={[styles.typeButtonText, { color: theme.textGray }, userType === 'diarista' && styles.typeButtonTextActive]}>Sou Diarista</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {userType === 'diarista' && (
-                  <View style={{ zIndex: 50, width: '100%', marginBottom: 15 }}>
-                    <Text style={[styles.inputLabel, { color: theme.label }]}>Endereço Comercial / Atendimento</Text>
-                    <GooglePlacesAutocomplete
-                      placeholder="Digite seu endereço completo..."
-                      fetchDetails={true}
-                      minLength={2}
-                      debounce={300}
-                      disableScroll={true}
-                      listViewProps={{
-                        keyboardShouldPersistTaps: 'handled',
-                      }}
-                      query={{
-                        key: GOOGLE_PLACES_API_KEY,
-                        language: 'pt-BR',
-                        components: 'country:br',
-                        locationbias: 'circle:50000@-25.4284,-49.2733',
-                      }}
-                      onPress={(data, details = null) => {
-                        if (details) {
-                          const addressComponents = details.address_components;
-
-                          const getComponent = (types: string[]) => {
-                            const comp = addressComponents.find((c: any) => types.every(t => c.types.includes(t)));
-                            return comp ? comp.long_name : '';
-                          };
-
-                          const street = getComponent(['route']);
-                          const number = getComponent(['street_number']);
-                          const neighborhood = getComponent(['sublocality_level_1']) || getComponent(['political', 'sublocality']);
-                          const city = getComponent(['locality']);
-                          const state = getComponent(['administrative_area_level_1']);
-                          const postal_code = getComponent(['postal_code']).replace(/\D/g, '');
-                          const { lat, lng } = details.geometry.location;
-
-                          setSelectedAddress({
-                            street,
-                            number,
-                            neighborhood,
-                            city,
-                            state,
-                            postal_code,
-                            latitude: lat,
-                            longitude: lng
-                          });
-                        }
-                      }}
-                      styles={{
-                        textInput: { backgroundColor: theme.inputBg, color: theme.textDark, fontSize: 16, height: 45, borderRadius: 8 },
-                        listView: { backgroundColor: theme.white, borderRadius: 8, elevation: 5, zIndex: 999, position: 'relative' },
-                        description: { color: theme.textDark, fontWeight: 'bold' },
-                        row: { backgroundColor: theme.white, padding: 12 }
-                      }}
-                    />
-                  </View>
-                )}
-              </>
-            )}
-
-            <Text style={[styles.inputLabel, { color: theme.label }]}>E-mail</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Mail color={theme.textLight} size={20} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: theme.textDark }]}
-                placeholder="seu-email@exemplo.com"
-                placeholderTextColor={theme.textLight}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-
-            <Text style={[styles.inputLabel, { color: theme.label }]}>Senha</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Lock color={theme.textLight} size={20} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: theme.textDark }]}
-                placeholder="No mínimo 6 caracteres"
-                placeholderTextColor={theme.textLight}
-                secureTextEntry
-                autoCapitalize="none"
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-
-            {activeTab === 'entrar' && (
               <TouchableOpacity
-                style={styles.forgotPasswordButton}
-                onPress={() => setShowForgotPassword(true)}
+                style={[styles.submitButton, { backgroundColor: theme.primary }]}
+                onPress={handleResetPassword}
+                disabled={resetPasswordLoading}
               >
-                <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>Esqueci minha senha</Text>
+                {resetPasswordLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Salvar Nova Senha</Text>
+                )}
               </TouchableOpacity>
-            )}
 
-            <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: theme.primary }]}
-              onPress={activeTab === 'entrar' ? handleLogin : handleSignUp}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>
-                  {activeTab === 'entrar' ? 'Entrar no Aplicativo' : 'Concluir Cadastro'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={[styles.cancelButton, { borderColor: theme.border }]}
+                onPress={() => {
+                  setShowResetPasswordForm(false);
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}
+                disabled={resetPasswordLoading}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.textGray }]}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={[styles.tabContainer, { backgroundColor: theme.tabBg }]}>
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === 'entrar' && [styles.activeTabButton, { backgroundColor: theme.white }]]}
+                  onPress={() => setActiveTab('entrar')}
+                >
+                  <Text style={[styles.tabText, { color: theme.textGray }, activeTab === 'entrar' && { color: theme.textDark }]}>Entrar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === 'cadastrar' && [styles.activeTabButton, { backgroundColor: theme.white }]]}
+                  onPress={() => setActiveTab('cadastrar')}
+                >
+                  <Text style={[styles.tabText, { color: theme.textGray }, activeTab === 'cadastrar' && { color: theme.textDark }]}>Cadastrar</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.card, { backgroundColor: theme.white }]}>
+                {activeTab === 'cadastrar' && (
+                  <>
+                    <Text style={[styles.inputLabel, { color: theme.label }]}>Nome Completo</Text>
+                    <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                      <User color={theme.textLight} size={20} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textDark }]}
+                        placeholder="Seu nome completo"
+                        placeholderTextColor={theme.textLight}
+                        value={fullName}
+                        onChangeText={setFullName}
+                      />
+                    </View>
+
+                    <Text style={[styles.inputLabel, { color: theme.label }]}>Telefone / WhatsApp</Text>
+                    <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                      <Phone color={theme.textLight} size={20} style={styles.inputIcon} />
+                        <TextInput
+                        style={[styles.input, { color: theme.textDark }]}
+                        placeholder="(41) 99999-9999"
+                        placeholderTextColor={theme.textLight}
+                        keyboardType="phone-pad"
+                        value={phone}
+                        onChangeText={(text) => setPhone(maskPhone(text))}
+                      />
+                    </View>
+
+                    <Text style={[styles.inputLabel, { color: theme.label }]}>CPF</Text>
+                    <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                      <Text style={[styles.inputIcon, { fontSize: 20, color: theme.textLight }]}>🔒</Text>
+                      <TextInput
+                        style={[styles.input, { color: theme.textDark }]}
+                        placeholder="000.000.000-00"
+                        placeholderTextColor={theme.textLight}
+                        keyboardType="numeric"
+                        value={cpf}
+                        onChangeText={(text) => setCpf(formatCPF(text))}
+                      />
+                    </View>
+
+                    <Text style={[styles.inputLabel, { color: theme.label }]}>Tipo de Perfil</Text>
+                    <View style={styles.typeContainer}>
+                      <TouchableOpacity
+                        style={[styles.typeButton, { backgroundColor: theme.inputBg, borderColor: theme.border }, userType === 'cliente' && styles.typeButtonActive]}
+                        onPress={() => setUserType('cliente')}
+                      >
+                        <UserCheck color={userType === 'cliente' ? '#fff' : theme.textGray} size={20} />
+                        <Text style={[styles.typeButtonText, { color: theme.textGray }, userType === 'cliente' && styles.typeButtonTextActive]}>Quero Contratar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.typeButton, { backgroundColor: theme.inputBg, borderColor: theme.border }, userType === 'diarista' && styles.typeButtonActive]}
+                        onPress={() => setUserType('diarista')}
+                      >
+                        <Briefcase color={userType === 'diarista' ? '#fff' : theme.textGray} size={20} />
+                        <Text style={[styles.typeButtonText, { color: theme.textGray }, userType === 'diarista' && styles.typeButtonTextActive]}>Sou Diarista</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {userType === 'diarista' && (
+                      <View style={{ zIndex: 50, width: '100%', marginBottom: 15 }}>
+                        <Text style={[styles.inputLabel, { color: theme.label }]}>Endereço Comercial / Atendimento</Text>
+                        <GooglePlacesAutocomplete
+                          placeholder="Digite seu endereço completo..."
+                          fetchDetails={true}
+                          minLength={2}
+                          debounce={300}
+                          disableScroll={true}
+                          listViewProps={{
+                            keyboardShouldPersistTaps: 'handled',
+                          }}
+                          query={{
+                            key: GOOGLE_PLACES_API_KEY,
+                            language: 'pt-BR',
+                            components: 'country:br',
+                            locationbias: 'circle:50000@-25.4284,-49.2733',
+                          }}
+                          onPress={(data, details = null) => {
+                            if (details) {
+                              const addressComponents = details.address_components;
+
+                              const getComponent = (types: string[]) => {
+                                const comp = addressComponents.find((c: any) => types.every(t => c.types.includes(t)));
+                                return comp ? comp.long_name : '';
+                              };
+
+                              const street = getComponent(['route']);
+                              const number = getComponent(['street_number']);
+                              const neighborhood = getComponent(['sublocality_level_1']) || getComponent(['political', 'sublocality']);
+                              const city = getComponent(['locality']);
+                              const state = getComponent(['administrative_area_level_1']);
+                              const postal_code = getComponent(['postal_code']).replace(/\D/g, '');
+                              const { lat, lng } = details.geometry.location;
+
+                              setSelectedAddress({
+                                street,
+                                number,
+                                neighborhood,
+                                city,
+                                state,
+                                postal_code,
+                                latitude: lat,
+                                longitude: lng
+                              });
+                            }
+                          }}
+                          styles={{
+                            textInput: { backgroundColor: theme.inputBg, color: theme.textDark, fontSize: 16, height: 45, borderRadius: 8 },
+                            listView: { backgroundColor: theme.white, borderRadius: 8, elevation: 5, zIndex: 999, position: 'relative' },
+                            description: { color: theme.textDark, fontWeight: 'bold' },
+                            row: { backgroundColor: theme.white, padding: 12 }
+                          }}
+                        />
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <Text style={[styles.inputLabel, { color: theme.label }]}>E-mail</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                  <Mail color={theme.textLight} size={20} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: theme.textDark }]}
+                    placeholder="seu-email@exemplo.com"
+                    placeholderTextColor={theme.textLight}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
+
+                <Text style={[styles.inputLabel, { color: theme.label }]}>Senha</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                  <Lock color={theme.textLight} size={20} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: theme.textDark }]}
+                    placeholder="No mínimo 6 caracteres"
+                    placeholderTextColor={theme.textLight}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
+
+                {activeTab === 'entrar' && (
+                  <TouchableOpacity
+                    style={styles.forgotPasswordButton}
+                    onPress={() => setShowForgotPassword(true)}
+                  >
+                    <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>Esqueci minha senha</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.submitButton, { backgroundColor: theme.primary }]}
+                  onPress={activeTab === 'entrar' ? handleLogin : handleSignUp}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>
+                      {activeTab === 'entrar' ? 'Entrar no Aplicativo' : 'Concluir Cadastro'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
