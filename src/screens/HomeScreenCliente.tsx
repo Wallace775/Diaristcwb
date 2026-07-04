@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  FlatList,
   Modal,
   Linking,
   KeyboardAvoidingView,
@@ -208,27 +209,36 @@ export default function HomeScreenCliente({ onLogout }: Props) {
     try {
       setCarregandoDiaristas(true);
 
-      const { data: profiles, error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, phone, price, avatar_url, bio, birth_date, seniority, specialties, experience_years')
+        .select(`
+          id,
+          full_name,
+          phone,
+          price,
+          avatar_url,
+          bio,
+          birth_date,
+          seniority,
+          specialties,
+          experience_years,
+          addresses (
+            neighborhood,
+            latitude,
+            longitude
+          )
+        `)
         .eq('user_type', 'diarista');
 
       if (error) throw error;
 
-      if (!profiles || profiles.length === 0) {
+      if (!data || data.length === 0) {
         setDiaristas([]);
         return;
       }
 
-      const profileIds = profiles.map((p) => p.id);
-
-      const { data: addresses } = await supabase
-        .from('addresses')
-        .select('profile_id, neighborhood, latitude, longitude')
-        .in('profile_id', profileIds);
-
-      const diaristasFormatadas: DiaristaItem[] = profiles.map((item: any) => {
-        const endereco = addresses?.find((a: any) => a.profile_id === item.id) || null;
+      const diaristasFormatadas: DiaristaItem[] = data.map((item: any) => {
+        const endereco = item.addresses?.[0] || null;
         const seniorityVal = item.seniority || null;
         const specialtiesArr = item.specialties || [];
         const hasCoreFields =
@@ -1082,8 +1092,12 @@ export default function HomeScreenCliente({ onLogout }: Props) {
 
               <Text style={[styles.sectionTitle, { color: theme.textDark }]}>Profissionais em Destaque</Text>
 
-              <ScrollView style={styles.diaristasList} showsVerticalScrollIndicator={false}>
-                {diaristasExibidas.length === 0 ? (
+              <FlatList
+                data={diaristasExibidas}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.diaristasList}
+                ListEmptyComponent={
                   <View style={styles.emptyFavoritesContainer}>
                     <Heart size={48} color={theme.textLight} />
                     <Text style={[styles.emptyFavoritesText, { color: theme.textGray }]}>
@@ -1094,122 +1108,121 @@ export default function HomeScreenCliente({ onLogout }: Props) {
                             : 'Nenhuma profissional encontrada neste bairro.')}
                     </Text>
                   </View>
-                ) : (
-                  diaristasExibidas.map((diarista) => (
-                    <View key={diarista.id} style={[styles.diaristaCard, { backgroundColor: theme.white, borderColor: theme.border }]}>
-                      <TouchableOpacity
-                        style={styles.favAbsoluteBtn}
-                        onPress={() => toggleFavorite(diarista.id)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Heart
-                          size={20}
-                          color={favorites.has(diarista.id) ? '#ef4444' : theme.textLight}
-                          fill={favorites.has(diarista.id) ? '#ef4444' : 'transparent'}
+                }
+                renderItem={({ item: diarista }) => (
+                  <View style={[styles.diaristaCard, { backgroundColor: theme.white, borderColor: theme.border }]}>
+                    <TouchableOpacity
+                      style={styles.favAbsoluteBtn}
+                      onPress={() => toggleFavorite(diarista.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Heart
+                        size={20}
+                        color={favorites.has(diarista.id) ? '#ef4444' : theme.textLight}
+                        fill={favorites.has(diarista.id) ? '#ef4444' : 'transparent'}
+                      />
+                    </TouchableOpacity>
+
+                    <View style={styles.diaristaInfoRow}>
+                      <TouchableOpacity onPress={() => {
+                        if (diarista.latitude && diarista.longitude) {
+                          mapRef.current?.animateToRegion({ latitude: diarista.latitude, longitude: diarista.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 1000);
+                        }
+                        setMiniProfileDiarista(diarista);
+                        setMiniProfileVisible(true);
+                        carregarReviewsMiniPerfil(diarista.id);
+                      }}>
+                        <UserAvatar
+                          url={diarista.avatar_url}
+                          name={diarista.full_name}
+                          size={54}
                         />
                       </TouchableOpacity>
 
-                      <View style={styles.diaristaInfoRow}>
-                        <TouchableOpacity onPress={() => {
+                      <TouchableOpacity
+                        style={styles.diaristaMainDetails}
+                        onPress={() => {
                           if (diarista.latitude && diarista.longitude) {
                             mapRef.current?.animateToRegion({ latitude: diarista.latitude, longitude: diarista.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 1000);
                           }
                           setMiniProfileDiarista(diarista);
                           setMiniProfileVisible(true);
                           carregarReviewsMiniPerfil(diarista.id);
-                        }}>
-                          <UserAvatar
-                            url={diarista.avatar_url}
-                            name={diarista.full_name}
-                            size={54}
-                          />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.diaristaMainDetails}
-                          onPress={() => {
-                            if (diarista.latitude && diarista.longitude) {
-                              mapRef.current?.animateToRegion({ latitude: diarista.latitude, longitude: diarista.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 1000);
-                            }
-                            setMiniProfileDiarista(diarista);
-                            setMiniProfileVisible(true);
-                            carregarReviewsMiniPerfil(diarista.id);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <View style={styles.diaristaNameRow}>
-                            <Text style={[styles.diaristaName, { color: theme.textDark }]} numberOfLines={1}>
-                              {(() => {
-                                const idade = calcularIdade(diarista.birth_date);
-                                const nomeExibido = formatDisplayName(diarista.full_name);
-                                return idade ? `${nomeExibido}, ${idade} anos` : nomeExibido;
-                              })()}
-                            </Text>
-                            {diarista.profile_verified && <VerifiedBadge size={16} />}
-                          </View>
-                          <Text style={[styles.diaristaBairro, { color: theme.textGray }]}>📍 {diarista.bairro}</Text>
-                          {diarista.seniority && (
-                            <Text style={[styles.diaristaSeniority, { color: theme.primary }]}>
-                              {SENIORITY_OPTIONS.find((o) => o.value === diarista.seniority)?.label || diarista.seniority}
-                              {diarista.experience_years != null && ` · ${diarista.experience_years}+ anos`}
-                            </Text>
-                          )}
-                          {diarista.specialties.length > 0 && (
-                            <Text style={[styles.diaristaSpecialties, { color: theme.textGray }]} numberOfLines={1}>
-                              {diarista.specialties.join(' · ')}
-                            </Text>
-                          )}
-                          <Text style={[styles.diaristaRating, { color: theme.rating }]}>
-    {diaristaRatings[diarista.id]
-      ? `⭐ ${diaristaRatings[diarista.id].average}`
-      : '⭐ Novo'}
-  </Text>
-                          {getDiaristaBadges(diarista.id).map((badge) => (
-                            <View key={badge.key} style={styles.badgeRow}>
-                              <Text style={[styles.badgeTag, { color: theme.primary }]}>{badge.label}</Text>
-                              <TouchableOpacity
-                                onPress={() => Alert.alert(badge.label, badge.desc)}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <HelpCircle size={14} color={theme.textLight} />
-                              </TouchableOpacity>
-                            </View>
-                          ))}
-                          {diarista.bio ? (
-                            <Text style={[styles.diaristaBio, { color: theme.textGray }]} numberOfLines={2}>
-                              {diarista.bio}
-                            </Text>
-                          ) : null}
-                        </TouchableOpacity>
-
-                        <View style={styles.priceTagContainer}>
-                          <Text style={[styles.priceLabel, { color: theme.textLight }]}>Diária</Text>
-                          <Text style={[styles.priceValue, { color: theme.success }]}>
-                            {diarista.price ? `R$ ${maskPrice(diarista.price.toString())}` : 'A combinar'}
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.diaristaNameRow}>
+                          <Text style={[styles.diaristaName, { color: theme.textDark }]} numberOfLines={1}>
+                            {(() => {
+                              const idade = calcularIdade(diarista.birth_date);
+                              const nomeExibido = formatDisplayName(diarista.full_name);
+                              return idade ? `${nomeExibido}, ${idade} anos` : nomeExibido;
+                            })()}
                           </Text>
+                          {diarista.profile_verified && <VerifiedBadge size={16} />}
                         </View>
-                      </View>
-
-                      <View style={styles.cardActionsRow}>
-                        <TouchableOpacity
-                          style={[styles.connectButton, { backgroundColor: theme.primary }]}
-                          onPress={() => handleAbrirBookingModal(diarista)}
-                        >
-                          <Text style={styles.connectButtonText}>Solicitar Faxina</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.reviewsButton, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
-                          onPress={() => abrirReviewsDiarista(diarista)}
-                        >
-                          <Text style={[styles.reviewsButtonText, { color: theme.textGray }]}>
-                            {diaristaRatings[diarista.id]?.count || 0} avaliaç{diaristaRatings[diarista.id]?.count === 1 ? 'ão' : 'ões'}
+                        <Text style={[styles.diaristaBairro, { color: theme.textGray }]}>📍 {diarista.bairro}</Text>
+                        {diarista.seniority && (
+                          <Text style={[styles.diaristaSeniority, { color: theme.primary }]}>
+                            {SENIORITY_OPTIONS.find((o) => o.value === diarista.seniority)?.label || diarista.seniority}
+                            {diarista.experience_years != null && ` · ${diarista.experience_years}+ anos`}
                           </Text>
-                        </TouchableOpacity>
+                        )}
+                        {diarista.specialties.length > 0 && (
+                          <Text style={[styles.diaristaSpecialties, { color: theme.textGray }]} numberOfLines={1}>
+                            {diarista.specialties.join(' · ')}
+                          </Text>
+                        )}
+                        <Text style={[styles.diaristaRating, { color: theme.rating }]}>
+                          {diaristaRatings[diarista.id]
+                            ? `⭐ ${diaristaRatings[diarista.id].average}`
+                            : '⭐ Novo'}
+                        </Text>
+                        {getDiaristaBadges(diarista.id).map((badge) => (
+                          <View key={badge.key} style={styles.badgeRow}>
+                            <Text style={[styles.badgeTag, { color: theme.primary }]}>{badge.label}</Text>
+                            <TouchableOpacity
+                              onPress={() => Alert.alert(badge.label, badge.desc)}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <HelpCircle size={14} color={theme.textLight} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                        {diarista.bio ? (
+                          <Text style={[styles.diaristaBio, { color: theme.textGray }]} numberOfLines={2}>
+                            {diarista.bio}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+
+                      <View style={styles.priceTagContainer}>
+                        <Text style={[styles.priceLabel, { color: theme.textLight }]}>Diária</Text>
+                        <Text style={[styles.priceValue, { color: theme.success }]}>
+                          {diarista.price ? `R$ ${maskPrice(diarista.price.toString())}` : 'A combinar'}
+                        </Text>
                       </View>
                     </View>
-                  ))
+
+                    <View style={styles.cardActionsRow}>
+                      <TouchableOpacity
+                        style={[styles.connectButton, { backgroundColor: theme.primary }]}
+                        onPress={() => handleAbrirBookingModal(diarista)}
+                      >
+                        <Text style={styles.connectButtonText}>Solicitar Faxina</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.reviewsButton, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                        onPress={() => abrirReviewsDiarista(diarista)}
+                      >
+                        <Text style={[styles.reviewsButtonText, { color: theme.textGray }]}>
+                          {diaristaRatings[diarista.id]?.count || 0} avaliaç{diaristaRatings[diarista.id]?.count === 1 ? 'ão' : 'ões'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 )}
-              </ScrollView>
+              />
             </>
           )}
         </>
@@ -2357,7 +2370,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   diaristasList: {
-    flex: 1,
+    flexGrow: 1,
+    paddingBottom: 24,
   },
   diaristaCard: {
     backgroundColor: '#fff',

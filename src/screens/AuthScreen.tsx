@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Linking,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -27,9 +26,11 @@ import { GOOGLE_PLACES_API_KEY } from '../config/google';
 
 interface Props {
   onAuthSuccess: (type: UserType) => void;
+  showResetPasswordForm?: boolean;
+  onResetComplete?: () => void;
 }
 
-export default function AuthScreen({ onAuthSuccess }: Props) {
+export default function AuthScreen({ onAuthSuccess, showResetPasswordForm = false, onResetComplete }: Props) {
   const { theme, isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'entrar' | 'cadastrar'>('entrar');
   const [email, setEmail] = useState('');
@@ -43,47 +44,9 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
-  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
-
-  useEffect(() => {
-    const handleDeepLink = async (url: string | null) => {
-      if (!url) return;
-
-      if (url.includes('redefinir-senha')) {
-        try {
-          const parsedUrl = new URL(url);
-          const fragment = parsedUrl.hash.replace('#', '');
-          const params = new URLSearchParams(fragment);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
-
-            if (!error) {
-              setShowResetPasswordForm(true);
-            }
-          }
-        } catch (err) {
-          console.error('Erro ao processar deep link:', err);
-        }
-      }
-    };
-
-    Linking.getInitialURL().then(handleDeepLink);
-
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleDeepLink(event.url);
-    });
-
-    return () => subscription.remove();
-  }, []);
 
   const handleSignUp = async () => {
     if (!email || !password || !fullName || !phone) {
@@ -288,7 +251,7 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
       if (error) throw error;
 
       Alert.alert("Sucesso!", "Sua senha foi redefinida com sucesso.");
-      setShowResetPasswordForm(false);
+      onResetComplete?.();
       setNewPassword('');
       setConfirmNewPassword('');
     } catch (error: any) {
@@ -371,7 +334,7 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
               <TouchableOpacity
                 style={[styles.cancelButton, { borderColor: theme.border }]}
                 onPress={() => {
-                  setShowResetPasswordForm(false);
+                  onResetComplete?.();
                   setNewPassword('');
                   setConfirmNewPassword('');
                 }}
@@ -467,9 +430,7 @@ export default function AuthScreen({ onAuthSuccess }: Props) {
                           minLength={2}
                           debounce={300}
                           disableScroll={true}
-                          listViewProps={{
-                            keyboardShouldPersistTaps: 'handled',
-                          }}
+                          keyboardShouldPersistTaps="handled"
                           query={{
                             key: GOOGLE_PLACES_API_KEY,
                             language: 'pt-BR',
